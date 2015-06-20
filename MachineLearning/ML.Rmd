@@ -1,0 +1,53 @@
+---
+title: "Detection of Common Mistakes in Weight Lifting Exercise"
+author: "JB"
+date: "June 18, 2015"
+output: html_document
+---
+## Overview
+
+The goal of this analysis is to propose a classification model that can detect with high accuracy wether a barbell lift is performed correctly or not.
+For this purpose we use data obtained from accelerometers attached to the bodies of the six  participants who performed 10 repetitions of the Unilateral Dumbbell Biceps Curl in five variations (A, B, C, D, E). While class "A" stands for a correct execution of the exercise, the other classes stand for four different common mistakes.  
+For more information about the dataset we refer to this paper and website:  
+  
+*Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013  
+Read more: http://groupware.les.inf.puc-rio.br/har#dataset#ixzz3dZYvAEHa*
+
+
+## Getting and Cleaning Data
+```{r, echo = FALSE, eval = TRUE, cache = TRUE}
+data <- read.csv("./pml-training.csv", na.strings = c("NA", "", "#DIV/0!"))
+data <- data[, -(1:7)]
+valid <- apply(is.na(data), 2, sum) == 0
+data <- data[, valid]
+```
+
+After loading the data we performed some exploratory data analysis and found out, that quite a few of the variables have hardly any valid values. A lot of entries are either "NA", "", or "#DIV/0!". To obtain a tidy dataset we filter for those variables that have numeric values for all observations. These are actually only 53 of the originally 160 variables. In this step we also removed columns that corresponded to the subject performing the exercise and time stamps, as those should not influence our model.
+
+## Classification Model
+
+```{r, echo = FALSE, eval = TRUE, cache = TRUE, warning=FALSE, message=FALSE}
+library(caret)
+inTrain <- createDataPartition(y=data$classe, p=0.5, list=FALSE)
+training <- data[inTrain,]
+testing <- data[-inTrain,]
+```
+
+Before we choose a method to train our classifier, we partition the data into a training set and a testing set. Since we have a decent amount of data, we can leave half of it for testing the accuracy of our model and use only 50% for training the model.  
+We choose Random Forest as method for our classifier. It is a classification tree method that builds a number of decision trees on bootstrapped training samples. At each split in a tree a random sample of m predictors is chosen as split candidates, with m ≈ sqrt(p) (and p = number of predictors) usually, therefore the name "Random Forest". This is one of the best and most popular algorithms for classification problems.  
+We use the train() function in the caret package. This gives us the opportunity to select method and parameters for resampling. After trying the default method "boot", we also try the 5-fold and the 3-fold cross validation method. We eventually choose the 3-fold cross validation because it improves the run time of the algorithm significantly and accuracy does not seem to be a problem with this dataset. 
+
+After running our training algorithm on one half of the original dataset, we use the other half to estimate the out of sample accuracy of our classifier. 
+A summary of the model and the confusion matrix and statistics of the classifier performance on the testing set can be seen below in the Appendix. 
+The classifier performs with an estimated out of sample accuracy of 99%, that means given good data quality from the accelerometers it can be used to predict activity quality from activity monitors with high accuracy.
+
+```{r, echo = FALSE, eval = TRUE, chache = TRUE, warning=FALSE, message=FALSE}
+library(caret)
+tc <- trainControl(method="cv", number=3)
+
+modFit <- train(classe~ .,data=training,method="rf", trControl = tc)
+modFit
+confusionMatrix(testing$classe,predict(modFit,testing))
+
+```
+
